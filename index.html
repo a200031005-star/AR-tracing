@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0B0A08">
+<meta name="format-detection" content="telephone=no">
+<title>AR 트레이싱 — 따라 그리기</title>
+<style>
+  :root{
+    --ink:#F2EDE6;
+    --ink-dim:#B9B2A6;
+    --coral:#FF6B4A;
+    --coral-dim:#7A3A2C;
+    --panel: rgba(14,13,12,0.72);
+    --panel-solid:#15130F;
+    --line: rgba(242,237,230,0.18);
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{
+    margin:0; padding:0; width:100%; height:100%;
+    background:#0B0A08; color:var(--ink);
+    font-family: -apple-system, "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
+    overflow:hidden; touch-action:none; user-select:none;
+    -webkit-user-select:none; -webkit-touch-callout:none;
+    position:fixed; inset:0;
+  }
+  #app{ position:fixed; inset:0; height:100%; height:100dvh; }
+
+  /* ---- Camera layer ---- */
+  video#cam{
+    position:absolute; inset:0; width:100%; height:100%;
+    object-fit:cover; background:#000; touch-action:none;
+  }
+  video#cam.mirror{ transform:scaleX(-1); }
+
+  /* ---- Trace stage ---- */
+  #stage{
+    position:absolute; inset:0; overflow:hidden;
+    display:flex; align-items:center; justify-content:center;
+    touch-action:none; overscroll-behavior:none;
+  }
+  #traceImg{
+    position:absolute; left:50%; top:50%;
+    max-width:none; max-height:none;
+    transform-origin:center center;
+    pointer-events:none;
+    filter: drop-shadow(0 0 0 transparent);
+    will-change:transform, opacity;
+  }
+  #stage.locked #traceImg{ outline:none; }
+
+  /* ---- Sketch-corner viewfinder ---- */
+  .corner{
+    position:absolute; width:26px; height:26px;
+    border-color:var(--coral); opacity:.85; pointer-events:none;
+    z-index:5;
+  }
+  .corner.tl{ top:14px; left:14px; border-top:3px dashed var(--coral); border-left:3px dashed var(--coral); }
+  .corner.tr{ top:14px; right:14px; border-top:3px dashed var(--coral); border-right:3px dashed var(--coral); }
+  .corner.bl{ bottom:14px; left:14px; border-bottom:3px dashed var(--coral); border-left:3px dashed var(--coral); }
+  .corner.br{ bottom:14px; right:14px; border-bottom:3px dashed var(--coral); border-right:3px dashed var(--coral); }
+
+  /* ---- Empty state ---- */
+  #empty{
+    position:absolute; inset:0; z-index:20;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    gap:14px; text-align:center; padding:30px;
+    background:linear-gradient(180deg, rgba(11,10,8,.2), rgba(11,10,8,.85));
+  }
+  #empty.hidden{ display:none; }
+  #empty h1{
+    font-size:20px; margin:0; letter-spacing:.2px; color:var(--ink);
+  }
+  #empty p{ margin:0; color:var(--ink-dim); font-size:13.5px; line-height:1.5; max-width:280px; }
+  .bigbtn{
+    margin-top:6px;
+    background:var(--coral); color:#1A0E08; border:none;
+    font-weight:700; font-size:15px;
+    padding:13px 26px; border-radius:999px;
+    display:flex; align-items:center; gap:8px;
+  }
+
+  /* ---- Permission / error overlay ---- */
+  #permError{
+    position:absolute; inset:0; z-index:30;
+    display:none; flex-direction:column; align-items:center; justify-content:center;
+    gap:12px; text-align:center; padding:36px;
+    background:#0B0A08;
+  }
+  #permError.show{ display:flex; }
+  #permError h2{ margin:0; font-size:17px; color:var(--coral); }
+  #permError p{ margin:0; color:var(--ink-dim); font-size:13px; line-height:1.6; max-width:300px; }
+  #permError code{ background:#1c1a16; padding:2px 6px; border-radius:5px; color:var(--ink); }
+
+  /* ---- Top bar ---- */
+  #topbar{
+    position:absolute; top:0; left:0; right:0; z-index:15;
+    padding: max(12px, env(safe-area-inset-top)) 14px 10px;
+    display:flex; align-items:center; gap:10px;
+    background:linear-gradient(180deg, rgba(11,10,8,.75), transparent);
+  }
+  .iconbtn{
+    width:40px; height:40px; border-radius:50%;
+    background:var(--panel); border:1px solid var(--line);
+    display:flex; align-items:center; justify-content:center;
+    font-size:18px; color:var(--ink); flex:none;
+  }
+  .iconbtn.active{ background:var(--coral); border-color:var(--coral); color:#1A0E08; }
+  #opacityWrap{
+    flex:1; display:flex; align-items:center; gap:8px;
+    background:var(--panel); border:1px solid var(--line);
+    border-radius:999px; padding:6px 14px 6px 10px;
+  }
+  #opacityWrap span{ font-size:12px; color:var(--ink-dim); width:30px; text-align:center; flex:none;}
+  input[type=range]{
+    flex:1; -webkit-appearance:none; height:3px; border-radius:3px;
+    background:var(--line); outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:18px; height:18px; border-radius:50%;
+    background:var(--coral); border:2px solid var(--ink);
+  }
+
+  /* ---- Bottom bar ---- */
+  #bottombar{
+    position:absolute; left:0; right:0; bottom:0; z-index:15;
+    padding: 14px 16px max(16px, env(safe-area-inset-bottom));
+    display:flex; align-items:center; justify-content:space-between;
+    background:linear-gradient(0deg, rgba(11,10,8,.85), transparent);
+  }
+  .col{ display:flex; flex-direction:column; align-items:center; gap:5px; }
+  .col label{ font-size:10.5px; color:var(--ink-dim); letter-spacing:.3px; }
+  .shutter-mid{ display:flex; flex-direction:column; align-items:center; gap:6px; }
+  #pickBtn{
+    width:62px; height:62px; border-radius:50%;
+    background:transparent; border:3px solid var(--ink);
+    display:flex; align-items:center; justify-content:center;
+  }
+  #pickBtn .dot{ width:50px; height:50px; border-radius:50%; background:var(--coral); display:flex; align-items:center; justify-content:center; font-size:22px;}
+  #fileInput{ display:none; }
+
+  .toast{
+    position:absolute; bottom:118px; left:50%; transform:translateX(-50%);
+    background:var(--panel-solid); border:1px solid var(--line);
+    padding:9px 16px; border-radius:999px; font-size:12.5px;
+    color:var(--ink); z-index:40; opacity:0; pointer-events:none;
+    transition:opacity .25s ease;
+  }
+  .toast.show{ opacity:1; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <video id="cam" autoplay playsinline muted></video>
+
+  <div id="stage">
+    <img id="traceImg" alt="trace target" draggable="false">
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+  </div>
+
+  <div id="empty">
+    <h1>✏️ 따라 그릴 사진을 골라주세요</h1>
+    <p>사진을 고르면 카메라 화면 위에 반투명하게 겹쳐서 보여드려요. 종이 위에 휴대폰을 비추고 선을 따라 그리면 됩니다.</p>
+    <button class="bigbtn" id="pickBtnEmpty">🖼️ 사진 선택하기</button>
+  </div>
+
+  <div id="permError">
+    <h2>카메라를 열 수 없어요</h2>
+    <p>
+      카메라는 <code>https://</code> 또는 같은 기기의 <code>localhost</code>에서만 동작해요.
+      <code>file://</code>로 직접 열거나, PC의 IP로 접속하는 <code>http://</code>는 차단됩니다.<br><br>
+      ① 가장 쉬운 방법: 이 파일을 <code>netlify.com/drop</code>같은 곳에 올려 생긴 https 링크로 열기<br>
+      ② 폰만으로: Termux 등에서 폰 자체에 서버를 켜고 <code>http://localhost:포트</code>로 열기<br>
+      권한 팝업이 떴다면 "허용"을 눌렀는지도 확인해주세요.
+    </p>
+  </div>
+
+  <input type="file" id="fileInput" accept="image/*">
+
+  <div id="topbar">
+    <button class="iconbtn" id="flipBtn" title="좌우 반전">⇋</button>
+    <div id="opacityWrap">
+      <span id="opacityVal">55%</span>
+      <input type="range" id="opacitySlider" min="10" max="95" value="55">
+    </div>
+    <button class="iconbtn" id="lockBtn" title="위치 고정">🔓</button>
+  </div>
+
+  <div id="bottombar">
+    <div class="col">
+      <button class="iconbtn" id="switchCamBtn" title="전/후면 전환">🔄</button>
+      <label>카메라전환</label>
+    </div>
+    <div class="shutter-mid">
+      <button id="pickBtn"><div class="dot">🖼️</div></button>
+      <label style="font-size:10.5px;color:var(--ink-dim);">사진 변경</label>
+    </div>
+    <div class="col">
+      <button class="iconbtn" id="torchBtn" title="손전등">💡</button>
+      <label>손전등</label>
+    </div>
+    <div class="col">
+      <button class="iconbtn" id="resetBtn" title="위치 초기화">↺</button>
+      <label>초기화</label>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+(function(){
+  // ---- Extra safety net: some older iOS Safari versions ignore touch-action
+  // and still try to pinch-zoom or rubber-band scroll the page itself.
+  document.addEventListener('touchmove', function(e){
+    e.preventDefault();
+  }, { passive:false });
+  document.addEventListener('gesturestart', function(e){
+    e.preventDefault();
+  });
+
+  // ---- Recompute layout on rotate/resize ----
+  window.addEventListener('resize', ()=>{
+    // object-fit:cover on the video handles reframing automatically.
+    // Image offsets stay valid since they're relative to screen center.
+  });
+
+  const camEl = document.getElementById('cam');
+  const stage = document.getElementById('stage');
+  const img = document.getElementById('traceImg');
+  const emptyEl = document.getElementById('empty');
+  const permErrorEl = document.getElementById('permError');
+  const fileInput = document.getElementById('fileInput');
+  const toastEl = document.getElementById('toast');
+
+  const opacitySlider = document.getElementById('opacitySlider');
+  const opacityVal = document.getElementById('opacityVal');
+  const flipBtn = document.getElementById('flipBtn');
+  const lockBtn = document.getElementById('lockBtn');
+  const torchBtn = document.getElementById('torchBtn');
+  const switchCamBtn = document.getElementById('switchCamBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const pickBtn = document.getElementById('pickBtn');
+  const pickBtnEmpty = document.getElementById('pickBtnEmpty');
+
+  let state = { x:0, y:0, scale:1, rotation:0, flipped:false, locked:false, opacity:0.55 };
+  let currentFacing = 'environment';
+  let currentStream = null;
+  let currentTrack = null;
+  let torchOn = false;
+  let hasImage = false;
+
+  function showToast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(showToast._t);
+    showToast._t = setTimeout(()=> toastEl.classList.remove('show'), 1600);
+  }
+
+  function applyTransform(){
+    const flipScale = state.flipped ? -1 : 1;
+    img.style.transform =
+      `translate(-50%,-50%) translate(${state.x}px, ${state.y}px) rotate(${state.rotation}deg) scale(${flipScale * state.scale}, ${state.scale})`;
+    img.style.opacity = state.opacity;
+  }
+
+  function resetTransform(){
+    state.x = 0; state.y = 0; state.scale = 1; state.rotation = 0;
+    applyTransform();
+  }
+
+  // ---- Camera setup ----
+  async function startCamera(facing){
+    try{
+      if(currentStream){
+        currentStream.getTracks().forEach(t=>t.stop());
+      }
+      const constraints = {
+        audio:false,
+        video:{ facingMode: facing, width:{ideal:1920}, height:{ideal:1080} }
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      currentStream = stream;
+      currentTrack = stream.getVideoTracks()[0];
+      camEl.srcObject = stream;
+      camEl.classList.toggle('mirror', facing === 'user');
+      permErrorEl.classList.remove('show');
+
+      // reset torch state when switching camera
+      torchOn = false;
+      torchBtn.classList.remove('active');
+      const caps = currentTrack.getCapabilities ? currentTrack.getCapabilities() : {};
+      torchBtn.style.opacity = caps.torch ? '1' : '0.35';
+    }catch(err){
+      permErrorEl.classList.add('show');
+    }
+  }
+
+  function isSecureEnough(){
+    return location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  }
+
+  if(!isSecureEnough()){
+    permErrorEl.classList.add('show');
+  } else if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+    permErrorEl.classList.add('show');
+  } else {
+    startCamera(currentFacing);
+  }
+
+  switchCamBtn.addEventListener('click', ()=>{
+    currentFacing = currentFacing === 'environment' ? 'user' : 'environment';
+    startCamera(currentFacing);
+    showToast(currentFacing === 'environment' ? '후면 카메라' : '전면 카메라');
+  });
+
+  torchBtn.addEventListener('click', async ()=>{
+    if(!currentTrack) return;
+    const caps = currentTrack.getCapabilities ? currentTrack.getCapabilities() : {};
+    if(!caps.torch){
+      showToast('이 기기는 손전등을 지원하지 않아요');
+      return;
+    }
+    try{
+      torchOn = !torchOn;
+      await currentTrack.applyConstraints({ advanced:[{ torch: torchOn }] });
+      torchBtn.classList.toggle('active', torchOn);
+    }catch(e){
+      showToast('손전등 제어에 실패했어요');
+    }
+  });
+
+  // ---- Image picking ----
+  function handleFile(file){
+    if(!file) return;
+    const url = URL.createObjectURL(file);
+    img.onload = ()=>{
+      hasImage = true;
+      emptyEl.classList.add('hidden');
+      // fit image to roughly screen width on load
+      const targetW = window.innerWidth * 0.85;
+      const scale = targetW / img.naturalWidth;
+      img.style.width = img.naturalWidth + 'px';
+      img.style.height = img.naturalHeight + 'px';
+      state.scale = scale;
+      state.x = 0; state.y = 0; state.rotation = 0;
+      applyTransform();
+    };
+    img.src = url;
+  }
+
+  fileInput.addEventListener('change', (e)=>{
+    handleFile(e.target.files[0]);
+  });
+  pickBtn.addEventListener('click', ()=> fileInput.click());
+  pickBtnEmpty.addEventListener('click', ()=> fileInput.click());
+
+  // ---- Opacity ----
+  opacitySlider.addEventListener('input', ()=>{
+    state.opacity = opacitySlider.value / 100;
+    opacityVal.textContent = opacitySlider.value + '%';
+    applyTransform();
+  });
+
+  // ---- Flip ----
+  flipBtn.addEventListener('click', ()=>{
+    state.flipped = !state.flipped;
+    flipBtn.classList.toggle('active', state.flipped);
+    applyTransform();
+  });
+
+  // ---- Lock ----
+  lockBtn.addEventListener('click', ()=>{
+    state.locked = !state.locked;
+    lockBtn.textContent = state.locked ? '🔒' : '🔓';
+    lockBtn.classList.toggle('active', state.locked);
+    showToast(state.locked ? '위치가 고정됐어요' : '위치 고정 해제');
+  });
+
+  // ---- Reset ----
+  resetBtn.addEventListener('click', ()=>{
+    if(!hasImage) return;
+    const targetW = window.innerWidth * 0.85;
+    state.scale = targetW / img.naturalWidth;
+    state.x = 0; state.y = 0; state.rotation = 0;
+    applyTransform();
+    showToast('위치를 초기화했어요');
+  });
+
+  // ---- Touch gestures: drag / pinch-zoom / two-finger rotate ----
+  const pointers = new Map();
+  let gestureStart = null;
+
+  function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
+  function angle(a,b){ return Math.atan2(b.y-a.y, b.x-a.x) * 180/Math.PI; }
+  function mid(a,b){ return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
+
+  stage.addEventListener('pointerdown', (e)=>{
+    if(state.locked || !hasImage) return;
+    stage.setPointerCapture(e.pointerId);
+    pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
+
+    if(pointers.size === 1){
+      gestureStart = {
+        mode:'drag',
+        startX: state.x, startY: state.y,
+        p0: {...[...pointers.values()][0]}
+      };
+    } else if(pointers.size === 2){
+      const [p1,p2] = [...pointers.values()];
+      gestureStart = {
+        mode:'pinch',
+        startScale: state.scale,
+        startRot: state.rotation,
+        startX: state.x, startY: state.y,
+        d0: dist(p1,p2),
+        a0: angle(p1,p2),
+        m0: mid(p1,p2)
+      };
+    }
+  });
+
+  stage.addEventListener('pointermove', (e)=>{
+    if(!pointers.has(e.pointerId)) return;
+    pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
+
+    if(gestureStart && gestureStart.mode === 'drag' && pointers.size === 1){
+      const p = [...pointers.values()][0];
+      state.x = gestureStart.startX + (p.x - gestureStart.p0.x);
+      state.y = gestureStart.startY + (p.y - gestureStart.p0.y);
+      applyTransform();
+    } else if(gestureStart && gestureStart.mode === 'pinch' && pointers.size === 2){
+      const [p1,p2] = [...pointers.values()];
+      const d1 = dist(p1,p2);
+      const a1 = angle(p1,p2);
+      const m1 = mid(p1,p2);
+      state.scale = Math.max(0.1, gestureStart.startScale * (d1 / gestureStart.d0));
+      state.rotation = gestureStart.startRot + (a1 - gestureStart.a0);
+      state.x = gestureStart.startX + (m1.x - gestureStart.m0.x);
+      state.y = gestureStart.startY + (m1.y - gestureStart.m0.y);
+      applyTransform();
+    }
+  });
+
+  function endPointer(e){
+    pointers.delete(e.pointerId);
+    if(pointers.size === 1){
+      const p = [...pointers.values()][0];
+      gestureStart = { mode:'drag', startX:state.x, startY:state.y, p0:{...p} };
+    } else if(pointers.size === 0){
+      gestureStart = null;
+    }
+  }
+  stage.addEventListener('pointerup', endPointer);
+  stage.addEventListener('pointercancel', endPointer);
+
+})();
+</script>
+</body>
+</html>
