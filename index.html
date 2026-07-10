@@ -6,151 +6,212 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="theme-color" content="#0B0A08">
+<meta name="theme-color" content="#7C3AED">
 <meta name="format-detection" content="telephone=no">
-<title>AR 트레이싱 — 따라 그리기</title>
+<link rel="manifest" href="manifest.json">
+<title>✏️ 따라그리기</title>
 <style>
-  :root{
-    --ink:#F2EDE6;
-    --ink-dim:#B9B2A6;
-    --coral:#FF6B4A;
-    --coral-dim:#7A3A2C;
-    --panel: rgba(14,13,12,0.72);
-    --panel-solid:#15130F;
-    --line: rgba(242,237,230,0.18);
-  }
-  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
-  html,body{
-    margin:0; padding:0; width:100%; height:100%;
-    background:#0B0A08; color:var(--ink);
-    font-family: -apple-system, "Pretendard", "Apple SD Gothic Neo", "Noto Sans KR", system-ui, sans-serif;
-    overflow:hidden; touch-action:none; user-select:none;
-    -webkit-user-select:none; -webkit-touch-callout:none;
-    position:fixed; inset:0;
-  }
-  #app{ position:fixed; inset:0; height:100%; height:100dvh; }
+:root{
+  --pur:#7C3AED; --pur2:#A855F7; --pur-light:#EDE9FE;
+  --pink:#EC4899; --yel:#FBBF24; --mint:#10B981; --sky:#38BDF8;
+  --white:#FFFFFF; --soft:#F5F3FF;
+  --txt:#1E1B4B; --txt-dim:#6D6BA0;
+  --shadow: 0 4px 20px rgba(124,58,237,.25);
+  --shadow-sm: 0 2px 8px rgba(0,0,0,.18);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0;}
+html,body{
+  width:100%;height:100%;background:#1E1B4B;
+  font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",system-ui,sans-serif;
+  overflow:hidden;touch-action:none;user-select:none;
+  -webkit-user-select:none;-webkit-touch-callout:none;
+  position:fixed;inset:0;
+}
+#app{position:fixed;inset:0;height:100%;height:100dvh;}
 
-  /* ---- Camera layer ---- */
-  video#cam{
-    position:absolute; inset:0; width:100%; height:100%;
-    object-fit:cover; background:#000; touch-action:none;
-  }
-  video#cam.mirror{ transform:scaleX(-1); }
+/* ── 카메라 ── */
+video#cam{
+  position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;background:#000;touch-action:none;
+}
+video#cam.mirror{transform:scaleX(-1);}
 
-  /* ---- Trace stage ---- */
-  #stage{
-    position:absolute; inset:0; overflow:hidden;
-    display:flex; align-items:center; justify-content:center;
-    touch-action:none; overscroll-behavior:none;
-  }
-  #traceImg{
-    position:absolute; left:50%; top:50%;
-    max-width:none; max-height:none;
-    transform-origin:center center;
-    pointer-events:none;
-    filter: drop-shadow(0 0 0 transparent);
-    will-change:transform, opacity;
-  }
-  #stage.locked #traceImg{ outline:none; }
+/* ── 이미지 오버레이 ── */
+#stage{
+  position:absolute;inset:0;overflow:hidden;
+  display:flex;align-items:center;justify-content:center;
+  touch-action:none;overscroll-behavior:none;
+}
+#traceImg{
+  position:absolute;left:50%;top:50%;
+  max-width:none;max-height:none;
+  transform-origin:center center;
+  pointer-events:none;will-change:transform,opacity;
+}
 
-  /* ---- Sketch-corner viewfinder ---- */
-  .corner{
-    position:absolute; width:26px; height:26px;
-    border-color:var(--coral); opacity:.85; pointer-events:none;
-    z-index:5;
-  }
-  .corner.tl{ top:14px; left:14px; border-top:3px dashed var(--coral); border-left:3px dashed var(--coral); }
-  .corner.tr{ top:14px; right:14px; border-top:3px dashed var(--coral); border-right:3px dashed var(--coral); }
-  .corner.bl{ bottom:14px; left:14px; border-bottom:3px dashed var(--coral); border-left:3px dashed var(--coral); }
-  .corner.br{ bottom:14px; right:14px; border-bottom:3px dashed var(--coral); border-right:3px dashed var(--coral); }
+/* ── 별 파티클 (시작화면 장식) ── */
+.star{
+  position:absolute;pointer-events:none;font-size:22px;
+  animation:twinkle 2.5s ease-in-out infinite;
+}
+@keyframes twinkle{0%,100%{opacity:.25;transform:scale(.8);}50%{opacity:1;transform:scale(1.15);}}
 
-  /* ---- Empty state ---- */
-  #empty{
-    position:absolute; inset:0; z-index:20;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    gap:14px; text-align:center; padding:30px;
-    background:linear-gradient(180deg, rgba(11,10,8,.2), rgba(11,10,8,.85));
-  }
-  #empty.hidden{ display:none; }
-  #empty h1{
-    font-size:20px; margin:0; letter-spacing:.2px; color:var(--ink);
-  }
-  #empty p{ margin:0; color:var(--ink-dim); font-size:13.5px; line-height:1.5; max-width:280px; }
-  .bigbtn{
-    margin-top:6px;
-    background:var(--coral); color:#1A0E08; border:none;
-    font-weight:700; font-size:15px;
-    padding:13px 26px; border-radius:999px;
-    display:flex; align-items:center; gap:8px;
-  }
+/* ── 시작화면 ── */
+#empty{
+  position:absolute;inset:0;z-index:20;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:0;text-align:center;padding:28px;
+  background:linear-gradient(160deg,#1E1B4B 0%,#4C1D95 60%,#2D1B69 100%);
+  overflow:hidden;
+}
+#empty.hidden{display:none;}
 
-  /* ---- Permission / error overlay ---- */
-  #permError{
-    position:absolute; inset:0; z-index:30;
-    display:none; flex-direction:column; align-items:center; justify-content:center;
-    gap:12px; text-align:center; padding:36px;
-    background:#0B0A08;
-  }
-  #permError.show{ display:flex; }
-  #permError h2{ margin:0; font-size:17px; color:var(--coral); }
-  #permError p{ margin:0; color:var(--ink-dim); font-size:13px; line-height:1.6; max-width:300px; }
-  #permError code{ background:#1c1a16; padding:2px 6px; border-radius:5px; color:var(--ink); }
+.empty-art{
+  width:140px;height:140px;position:relative;margin-bottom:20px;
+}
+.empty-art svg{width:100%;height:100%;}
 
-  /* ---- Top bar ---- */
-  #topbar{
-    position:absolute; top:0; left:0; right:0; z-index:15;
-    padding: max(12px, env(safe-area-inset-top)) 14px 10px;
-    display:flex; align-items:center; gap:10px;
-    background:linear-gradient(180deg, rgba(11,10,8,.75), transparent);
-  }
-  .iconbtn{
-    width:40px; height:40px; border-radius:50%;
-    background:var(--panel); border:1px solid var(--line);
-    display:flex; align-items:center; justify-content:center;
-    font-size:18px; color:var(--ink); flex:none;
-  }
-  .iconbtn.active{ background:var(--coral); border-color:var(--coral); color:#1A0E08; }
-  #opacityWrap{
-    flex:1; display:flex; align-items:center; gap:8px;
-    background:var(--panel); border:1px solid var(--line);
-    border-radius:999px; padding:6px 14px 6px 10px;
-  }
-  #opacityWrap span{ font-size:12px; color:var(--ink-dim); width:30px; text-align:center; flex:none;}
-  input[type=range]{
-    flex:1; -webkit-appearance:none; height:3px; border-radius:3px;
-    background:var(--line); outline:none;
-  }
-  input[type=range]::-webkit-slider-thumb{
-    -webkit-appearance:none; width:18px; height:18px; border-radius:50%;
-    background:var(--coral); border:2px solid var(--ink);
-  }
+#empty h1{
+  font-size:24px;font-weight:800;color:#fff;
+  line-height:1.3;margin-bottom:10px;letter-spacing:-.3px;
+}
+#empty p{
+  font-size:14px;line-height:1.7;color:#C4B5FD;
+  max-width:270px;margin-bottom:28px;
+}
 
-  /* ---- Bottom bar ---- */
-  #bottombar{
-    position:absolute; left:0; right:0; bottom:0; z-index:15;
-    padding: 14px 16px max(16px, env(safe-area-inset-bottom));
-    display:flex; align-items:center; justify-content:space-between;
-    background:linear-gradient(0deg, rgba(11,10,8,.85), transparent);
-  }
-  .col{ display:flex; flex-direction:column; align-items:center; gap:5px; }
-  .col label{ font-size:10.5px; color:var(--ink-dim); letter-spacing:.3px; }
-  .shutter-mid{ display:flex; flex-direction:column; align-items:center; gap:6px; }
-  #pickBtn{
-    width:62px; height:62px; border-radius:50%;
-    background:transparent; border:3px solid var(--ink);
-    display:flex; align-items:center; justify-content:center;
-  }
-  #pickBtn .dot{ width:50px; height:50px; border-radius:50%; background:var(--coral); display:flex; align-items:center; justify-content:center; font-size:22px;}
-  #fileInput{ display:none; }
+.start-btn{
+  background:linear-gradient(135deg,var(--pink),var(--pur2));
+  color:#fff;border:none;border-radius:999px;
+  font-size:17px;font-weight:800;
+  padding:16px 36px;
+  display:flex;align-items:center;gap:10px;
+  box-shadow:0 6px 24px rgba(236,72,153,.5);
+  letter-spacing:-.2px;
+}
 
-  .toast{
-    position:absolute; bottom:118px; left:50%; transform:translateX(-50%);
-    background:var(--panel-solid); border:1px solid var(--line);
-    padding:9px 16px; border-radius:999px; font-size:12.5px;
-    color:var(--ink); z-index:40; opacity:0; pointer-events:none;
-    transition:opacity .25s ease;
-  }
-  .toast.show{ opacity:1; }
+/* ── 카메라 오류 화면 ── */
+#permError{
+  position:absolute;inset:0;z-index:30;
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;text-align:center;padding:36px;
+  background:linear-gradient(160deg,#1E1B4B,#4C1D95);
+}
+#permError.show{display:flex;}
+#permError .err-icon{font-size:56px;}
+#permError h2{font-size:20px;font-weight:800;color:#FCA5A5;margin:0;}
+#permError p{font-size:13px;line-height:1.7;color:#C4B5FD;max-width:290px;}
+#permError code{
+  background:rgba(255,255,255,.12);padding:3px 8px;
+  border-radius:6px;color:#fff;font-size:12px;
+}
+
+/* ── 상단바 ── */
+#topbar{
+  position:absolute;top:0;left:0;right:0;z-index:15;
+  padding:max(10px,env(safe-area-inset-top)) 12px 8px;
+  display:flex;align-items:center;gap:8px;
+}
+
+/* 버튼 공통 */
+.btn{
+  border:none;cursor:pointer;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:3px;
+  border-radius:18px;flex:none;transition:transform .12s ease,opacity .12s ease;
+}
+.btn:active{transform:scale(.9);opacity:.85;}
+
+.btn-sq{
+  width:52px;height:52px;border-radius:18px;
+  background:rgba(255,255,255,.15);backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border:1.5px solid rgba(255,255,255,.25);
+  font-size:22px;color:#fff;
+}
+.btn-sq.active{
+  background:linear-gradient(135deg,var(--pink),var(--pur2));
+  border-color:transparent;
+  box-shadow:0 4px 14px rgba(236,72,153,.45);
+}
+.btn-sq svg{width:26px;height:26px;}
+
+/* 투명도 슬라이더 래퍼 */
+#sliderWrap{
+  flex:1;display:flex;align-items:center;gap:6px;
+  background:rgba(255,255,255,.15);backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border:1.5px solid rgba(255,255,255,.25);
+  border-radius:18px;padding:6px 12px;height:52px;
+}
+#sliderWrap .sl-icon{font-size:18px;flex:none;}
+input[type=range]{
+  flex:1;-webkit-appearance:none;height:5px;border-radius:5px;
+  background:rgba(255,255,255,.3);outline:none;
+}
+input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;width:22px;height:22px;border-radius:50%;
+  background:linear-gradient(135deg,var(--yel),var(--pink));
+  border:2.5px solid #fff;box-shadow:var(--shadow-sm);
+}
+
+/* ── 하단바 ── */
+#bottombar{
+  position:absolute;left:0;right:0;bottom:0;z-index:15;
+  padding:12px 14px max(14px,env(safe-area-inset-bottom));
+  display:flex;align-items:flex-end;justify-content:space-between;
+}
+
+.btn-round{
+  width:52px;height:52px;border-radius:50%;
+  background:rgba(255,255,255,.15);backdrop-filter:blur(12px);
+  -webkit-backdrop-filter:blur(12px);
+  border:1.5px solid rgba(255,255,255,.25);
+  font-size:22px;color:#fff;
+}
+.btn-round svg{width:26px;height:26px;}
+.btn-round.active{
+  background:linear-gradient(135deg,var(--mint),var(--sky));
+  border-color:transparent;
+  box-shadow:0 4px 14px rgba(16,185,129,.45);
+}
+
+.col-btn{display:flex;flex-direction:column;align-items:center;gap:5px;}
+.col-btn span{font-size:11px;font-weight:700;color:rgba(255,255,255,.75);letter-spacing:-.2px;}
+
+/* 가운데 큰 버튼 */
+#pickBtn{
+  width:72px;height:72px;border-radius:50%;
+  background:linear-gradient(135deg,var(--pink),var(--pur2));
+  border:3.5px solid rgba(255,255,255,.5);
+  box-shadow:0 6px 24px rgba(236,72,153,.55);
+  font-size:28px;display:flex;align-items:center;justify-content:center;
+  transition:transform .12s ease;
+}
+#pickBtn:active{transform:scale(.9);}
+#fileInput{display:none;}
+
+/* ── 토스트 ── */
+.toast{
+  position:absolute;bottom:130px;left:50%;transform:translateX(-50%);
+  background:rgba(30,27,75,.92);border:1.5px solid rgba(255,255,255,.2);
+  backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
+  padding:10px 20px;border-radius:999px;font-size:13px;font-weight:700;
+  color:#fff;z-index:40;opacity:0;pointer-events:none;
+  transition:opacity .2s ease;white-space:nowrap;
+}
+.toast.show{opacity:1;}
+
+/* ── 잠금 오버레이 안내 ── */
+#lockHint{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  z-index:8;pointer-events:none;
+  background:rgba(124,58,237,.35);backdrop-filter:blur(4px);
+  -webkit-backdrop-filter:blur(4px);
+  border:2px dashed rgba(255,255,255,.35);border-radius:16px;
+  padding:8px 18px;font-size:13px;font-weight:800;color:#fff;
+  opacity:0;transition:opacity .3s;
+}
+#lockHint.show{opacity:1;}
 </style>
 </head>
 <body>
@@ -159,309 +220,350 @@
   <video id="cam" autoplay playsinline muted></video>
 
   <div id="stage">
-    <img id="traceImg" alt="trace target" draggable="false">
-    <div class="corner tl"></div>
-    <div class="corner tr"></div>
-    <div class="corner bl"></div>
-    <div class="corner br"></div>
+    <img id="traceImg" alt="" draggable="false">
   </div>
 
+  <!-- 시작 화면 -->
   <div id="empty">
-    <h1>✏️ 따라 그릴 사진을 골라주세요</h1>
-    <p>사진을 고르면 카메라 화면 위에 반투명하게 겹쳐서 보여드려요. 종이 위에 휴대폰을 비추고 선을 따라 그리면 됩니다.</p>
-    <button class="bigbtn" id="pickBtnEmpty">🖼️ 사진 선택하기</button>
+    <!-- 별 장식 -->
+    <div class="star" style="top:8%;left:8%;animation-delay:0s">⭐</div>
+    <div class="star" style="top:12%;right:10%;animation-delay:.6s">✨</div>
+    <div class="star" style="top:30%;left:5%;animation-delay:1.1s;font-size:16px">🌟</div>
+    <div class="star" style="bottom:22%;right:7%;animation-delay:.3s">⭐</div>
+    <div class="star" style="bottom:14%;left:12%;animation-delay:.9s;font-size:16px">✨</div>
+
+    <div class="empty-art">
+      <svg viewBox="0 0 140 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <!-- 배경 원 -->
+        <circle cx="70" cy="70" r="64" fill="#4C1D95" opacity=".7"/>
+        <!-- 종이 -->
+        <rect x="34" y="32" width="60" height="76" rx="8" fill="white" opacity=".95"/>
+        <rect x="34" y="32" width="60" height="76" rx="8" stroke="#A78BFA" stroke-width="2"/>
+        <!-- 줄 -->
+        <line x1="44" y1="52" x2="84" y2="52" stroke="#DDD6FE" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="44" y1="63" x2="84" y2="63" stroke="#DDD6FE" stroke-width="2.5" stroke-linecap="round"/>
+        <line x1="44" y1="74" x2="70" y2="74" stroke="#DDD6FE" stroke-width="2.5" stroke-linecap="round"/>
+        <!-- 별 그림 -->
+        <polygon points="64,39 66.2,45.6 73.2,45.6 67.6,49.6 69.8,56.2 64,52.2 58.2,56.2 60.4,49.6 54.8,45.6 61.8,45.6" fill="#FBBF24"/>
+        <!-- 연필 -->
+        <g transform="rotate(-35,100,95)">
+          <rect x="88" y="72" width="12" height="40" rx="3" fill="#FBBF24"/>
+          <rect x="88" y="72" width="12" height="8" rx="3" fill="#F87171"/>
+          <polygon points="88,112 100,112 94,124" fill="#FDE68A"/>
+          <polygon points="91,118 97,118 94,124" fill="#1E1B4B" opacity=".6"/>
+        </g>
+        <!-- 카메라 아이콘 -->
+        <circle cx="70" cy="96" r="12" fill="#7C3AED" opacity=".9"/>
+        <circle cx="70" cy="96" r="7" fill="none" stroke="white" stroke-width="2.2"/>
+        <circle cx="70" cy="96" r="3" fill="white"/>
+        <rect x="74" y="89" width="4" height="3" rx="1" fill="white"/>
+      </svg>
+    </div>
+
+    <h1>사진을 고르면<br>따라 그릴 수 있어요! 🎨</h1>
+    <p>카메라로 종이를 비추면서<br>화면에 보이는 그림을 따라 그려보세요.</p>
+    <button class="start-btn btn" id="pickBtnEmpty">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/>
+        <polyline points="21 15 16 10 5 21"/>
+      </svg>
+      그림 사진 고르기
+    </button>
   </div>
 
+  <!-- 카메라 오류 -->
   <div id="permError">
+    <div class="err-icon">😢</div>
     <h2>카메라를 열 수 없어요</h2>
     <p>
-      카메라는 <code>https://</code> 또는 같은 기기의 <code>localhost</code>에서만 동작해요.
-      <code>file://</code>로 직접 열거나, PC의 IP로 접속하는 <code>http://</code>는 차단됩니다.<br><br>
-      ① 가장 쉬운 방법: 이 파일을 <code>netlify.com/drop</code>같은 곳에 올려 생긴 https 링크로 열기<br>
-      ② 폰만으로: Termux 등에서 폰 자체에 서버를 켜고 <code>http://localhost:포트</code>로 열기<br>
-      권한 팝업이 떴다면 "허용"을 눌렀는지도 확인해주세요.
+      이 앱은 <code>https://</code> 주소에서만 카메라가 켜져요.<br><br>
+      선생님께 GitHub Pages 주소를 부탁하거나,<br>
+      안드로이드 APK 앱으로 설치해서 사용해요!
     </p>
   </div>
 
   <input type="file" id="fileInput" accept="image/*">
 
+  <!-- 상단바 -->
   <div id="topbar">
-    <button class="iconbtn" id="flipBtn" title="좌우 반전">⇋</button>
-    <div id="opacityWrap">
-      <span id="opacityVal">55%</span>
+    <!-- 좌우반전 -->
+    <button class="btn btn-sq" id="flipBtn" title="좌우 반전">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M8 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3"/><path d="M16 3h3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-3"/>
+        <path d="M12 20v2"/><path d="M12 14v2"/><path d="M12 8v2"/><path d="M12 2v2"/>
+      </svg>
+    </button>
+    <!-- 투명도 슬라이더 -->
+    <div id="sliderWrap">
+      <span class="sl-icon">👁️</span>
       <input type="range" id="opacitySlider" min="10" max="95" value="55">
     </div>
-    <button class="iconbtn" id="lockBtn" title="위치 고정">🔓</button>
+    <!-- 잠금 -->
+    <button class="btn btn-sq" id="lockBtn" title="위치 고정">
+      <svg id="lockIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+      </svg>
+    </button>
   </div>
 
+  <!-- 하단바 -->
   <div id="bottombar">
-    <div class="col">
-      <button class="iconbtn" id="switchCamBtn" title="전/후면 전환">🔄</button>
-      <label>카메라전환</label>
+    <!-- 카메라 전환 -->
+    <div class="col-btn">
+      <button class="btn btn-round" id="switchCamBtn" title="카메라 전환">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 4v6h-6"/><path d="M1 20v-6h6"/>
+          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+        </svg>
+      </button>
+      <span>카메라</span>
     </div>
-    <div class="shutter-mid">
-      <button id="pickBtn"><div class="dot">🖼️</div></button>
-      <label style="font-size:10.5px;color:var(--ink-dim);">사진 변경</label>
+
+    <!-- 손전등 -->
+    <div class="col-btn">
+      <button class="btn btn-round" id="torchBtn" title="손전등">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 6c0-2.2-1.8-4-4-4H10C7.8 2 6 3.8 6 6l2 8h8l2-8z"/>
+          <path d="M8 14v2a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2"/>
+          <line x1="12" y1="18" x2="12" y2="21"/>
+          <line x1="9" y1="21" x2="15" y2="21"/>
+        </svg>
+      </button>
+      <span>손전등</span>
     </div>
-    <div class="col">
-      <button class="iconbtn" id="torchBtn" title="손전등">💡</button>
-      <label>손전등</label>
+
+    <!-- 가운데: 사진 고르기 -->
+    <div class="col-btn">
+      <button class="btn" id="pickBtn" title="사진 고르기">🖼️</button>
+      <span>사진 바꾸기</span>
     </div>
-    <div class="col">
-      <button class="iconbtn" id="resetBtn" title="위치 초기화">↺</button>
-      <label>초기화</label>
+
+    <!-- 초기화 -->
+    <div class="col-btn">
+      <button class="btn btn-round" id="resetBtn" title="위치 초기화">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/>
+        </svg>
+      </button>
+      <span>초기화</span>
     </div>
+
+    <!-- 빈 자리 맞춤 -->
+    <div style="width:52px"></div>
   </div>
 
+  <div id="lockHint">🔒 위치 잠금 중</div>
   <div class="toast" id="toast"></div>
 </div>
 
 <script>
 (function(){
-  // ---- Extra safety net: some older iOS Safari versions ignore touch-action
-  // and still try to pinch-zoom or rubber-band scroll the page itself.
-  document.addEventListener('touchmove', function(e){
-    e.preventDefault();
-  }, { passive:false });
-  document.addEventListener('gesturestart', function(e){
-    e.preventDefault();
-  });
+  document.addEventListener('touchmove',function(e){e.preventDefault();},{passive:false});
+  document.addEventListener('gesturestart',function(e){e.preventDefault();});
 
-  // ---- Recompute layout on rotate/resize ----
-  window.addEventListener('resize', ()=>{
-    // object-fit:cover on the video handles reframing automatically.
-    // Image offsets stay valid since they're relative to screen center.
-  });
-
-  const camEl = document.getElementById('cam');
-  const stage = document.getElementById('stage');
-  const img = document.getElementById('traceImg');
-  const emptyEl = document.getElementById('empty');
+  const camEl     = document.getElementById('cam');
+  const stage     = document.getElementById('stage');
+  const img       = document.getElementById('traceImg');
+  const emptyEl   = document.getElementById('empty');
   const permErrorEl = document.getElementById('permError');
   const fileInput = document.getElementById('fileInput');
-  const toastEl = document.getElementById('toast');
+  const toastEl   = document.getElementById('toast');
+  const lockHint  = document.getElementById('lockHint');
 
   const opacitySlider = document.getElementById('opacitySlider');
-  const opacityVal = document.getElementById('opacityVal');
-  const flipBtn = document.getElementById('flipBtn');
-  const lockBtn = document.getElementById('lockBtn');
-  const torchBtn = document.getElementById('torchBtn');
-  const switchCamBtn = document.getElementById('switchCamBtn');
-  const resetBtn = document.getElementById('resetBtn');
-  const pickBtn = document.getElementById('pickBtn');
-  const pickBtnEmpty = document.getElementById('pickBtnEmpty');
+  const flipBtn       = document.getElementById('flipBtn');
+  const lockBtn       = document.getElementById('lockBtn');
+  const torchBtn      = document.getElementById('torchBtn');
+  const switchCamBtn  = document.getElementById('switchCamBtn');
+  const resetBtn      = document.getElementById('resetBtn');
+  const pickBtn       = document.getElementById('pickBtn');
+  const pickBtnEmpty  = document.getElementById('pickBtnEmpty');
 
-  let state = { x:0, y:0, scale:1, rotation:0, flipped:false, locked:false, opacity:0.55 };
+  let state = {x:0,y:0,scale:1,rotation:0,flipped:false,locked:false,opacity:.55};
   let currentFacing = 'environment';
   let currentStream = null;
-  let currentTrack = null;
-  let torchOn = false;
+  let currentTrack  = null;
+  let torchOn  = false;
   let hasImage = false;
 
-  function showToast(msg){
-    toastEl.textContent = msg;
+  /* ── 토스트 ── */
+  function showToast(msg,emoji){
+    toastEl.textContent = (emoji?emoji+' ':'')+msg;
     toastEl.classList.add('show');
     clearTimeout(showToast._t);
-    showToast._t = setTimeout(()=> toastEl.classList.remove('show'), 1600);
+    showToast._t = setTimeout(()=>toastEl.classList.remove('show'),1700);
   }
 
+  /* ── 변환 적용 ── */
   function applyTransform(){
-    const flipScale = state.flipped ? -1 : 1;
+    const fs = state.flipped ? -1 : 1;
     img.style.transform =
-      `translate(-50%,-50%) translate(${state.x}px, ${state.y}px) rotate(${state.rotation}deg) scale(${flipScale * state.scale}, ${state.scale})`;
+      `translate(-50%,-50%) translate(${state.x}px,${state.y}px) rotate(${state.rotation}deg) scale(${fs*state.scale},${state.scale})`;
     img.style.opacity = state.opacity;
   }
 
-  function resetTransform(){
-    state.x = 0; state.y = 0; state.scale = 1; state.rotation = 0;
-    applyTransform();
-  }
-
-  // ---- Camera setup ----
+  /* ── 카메라 시작 ── */
   async function startCamera(facing){
     try{
-      if(currentStream){
-        currentStream.getTracks().forEach(t=>t.stop());
-      }
-      const constraints = {
+      if(currentStream) currentStream.getTracks().forEach(t=>t.stop());
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio:false,
-        video:{ facingMode: facing, width:{ideal:1920}, height:{ideal:1080} }
-      };
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video:{facingMode:facing,width:{ideal:1920},height:{ideal:1080}}
+      });
       currentStream = stream;
-      currentTrack = stream.getVideoTracks()[0];
+      currentTrack  = stream.getVideoTracks()[0];
       camEl.srcObject = stream;
-      camEl.classList.toggle('mirror', facing === 'user');
+      camEl.classList.toggle('mirror', facing==='user');
       permErrorEl.classList.remove('show');
-
-      // reset torch state when switching camera
       torchOn = false;
       torchBtn.classList.remove('active');
       const caps = currentTrack.getCapabilities ? currentTrack.getCapabilities() : {};
-      torchBtn.style.opacity = caps.torch ? '1' : '0.35';
+      torchBtn.style.opacity = caps.torch ? '1' : '0.45';
     }catch(err){
       permErrorEl.classList.add('show');
     }
   }
 
-  function isSecureEnough(){
-    return location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  function isSecure(){
+    return location.protocol==='https:' ||
+           location.hostname==='localhost' ||
+           location.hostname==='127.0.0.1';
   }
-
-  if(!isSecureEnough()){
-    permErrorEl.classList.add('show');
-  } else if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+  if(!isSecure()||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
     permErrorEl.classList.add('show');
   } else {
     startCamera(currentFacing);
   }
 
-  switchCamBtn.addEventListener('click', ()=>{
-    currentFacing = currentFacing === 'environment' ? 'user' : 'environment';
+  /* ── 카메라 전환 ── */
+  switchCamBtn.addEventListener('click',()=>{
+    currentFacing = currentFacing==='environment' ? 'user' : 'environment';
     startCamera(currentFacing);
-    showToast(currentFacing === 'environment' ? '후면 카메라' : '전면 카메라');
+    showToast(currentFacing==='environment'?'뒷 카메라로 바꿨어요':'앞 카메라로 바꿨어요','📷');
   });
 
-  torchBtn.addEventListener('click', async ()=>{
+  /* ── 손전등 ── */
+  torchBtn.addEventListener('click',async()=>{
     if(!currentTrack) return;
     const caps = currentTrack.getCapabilities ? currentTrack.getCapabilities() : {};
-    if(!caps.torch){
-      showToast('이 기기는 손전등을 지원하지 않아요');
-      return;
-    }
+    if(!caps.torch){ showToast('이 폰은 손전등을 지원하지 않아요','💡'); return; }
     try{
       torchOn = !torchOn;
-      await currentTrack.applyConstraints({ advanced:[{ torch: torchOn }] });
-      torchBtn.classList.toggle('active', torchOn);
-    }catch(e){
-      showToast('손전등 제어에 실패했어요');
-    }
+      await currentTrack.applyConstraints({advanced:[{torch:torchOn}]});
+      torchBtn.classList.toggle('active',torchOn);
+      showToast(torchOn?'손전등 켰어요!':'손전등 껐어요','💡');
+    }catch(e){ showToast('손전등을 켤 수 없어요','😅'); }
   });
 
-  // ---- Image picking ----
+  /* ── 사진 불러오기 ── */
   function handleFile(file){
     if(!file) return;
     const url = URL.createObjectURL(file);
     img.onload = ()=>{
       hasImage = true;
       emptyEl.classList.add('hidden');
-      // fit image to roughly screen width on load
-      const targetW = window.innerWidth * 0.85;
-      const scale = targetW / img.naturalWidth;
-      img.style.width = img.naturalWidth + 'px';
+      const targetW = window.innerWidth * 0.88;
+      img.style.width  = img.naturalWidth  + 'px';
       img.style.height = img.naturalHeight + 'px';
-      state.scale = scale;
-      state.x = 0; state.y = 0; state.rotation = 0;
+      state.scale = targetW / img.naturalWidth;
+      state.x=0; state.y=0; state.rotation=0;
       applyTransform();
+      showToast('사진을 불러왔어요! 이제 따라 그려봐요','🎨');
     };
     img.src = url;
   }
+  fileInput.addEventListener('change',e=>{ handleFile(e.target.files[0]); fileInput.value=''; });
+  pickBtn.addEventListener('click',()=>fileInput.click());
+  pickBtnEmpty.addEventListener('click',()=>fileInput.click());
 
-  fileInput.addEventListener('change', (e)=>{
-    handleFile(e.target.files[0]);
-  });
-  pickBtn.addEventListener('click', ()=> fileInput.click());
-  pickBtnEmpty.addEventListener('click', ()=> fileInput.click());
-
-  // ---- Opacity ----
-  opacitySlider.addEventListener('input', ()=>{
+  /* ── 투명도 ── */
+  opacitySlider.addEventListener('input',()=>{
     state.opacity = opacitySlider.value / 100;
-    opacityVal.textContent = opacitySlider.value + '%';
     applyTransform();
   });
 
-  // ---- Flip ----
-  flipBtn.addEventListener('click', ()=>{
+  /* ── 좌우반전 ── */
+  flipBtn.addEventListener('click',()=>{
     state.flipped = !state.flipped;
-    flipBtn.classList.toggle('active', state.flipped);
+    flipBtn.classList.toggle('active',state.flipped);
+    showToast(state.flipped?'사진을 뒤집었어요':'원래대로 돌아왔어요','🔄');
     applyTransform();
   });
 
-  // ---- Lock ----
-  lockBtn.addEventListener('click', ()=>{
+  /* ── 잠금 ── */
+  lockBtn.addEventListener('click',()=>{
     state.locked = !state.locked;
-    lockBtn.textContent = state.locked ? '🔒' : '🔓';
-    lockBtn.classList.toggle('active', state.locked);
-    showToast(state.locked ? '위치가 고정됐어요' : '위치 고정 해제');
+    lockBtn.classList.toggle('active',state.locked);
+    lockHint.classList.toggle('show',state.locked);
+    // 아이콘 교체
+    document.getElementById('lockIcon').innerHTML = state.locked
+      ? '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 9.9-1"/>'
+      : '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>';
+    showToast(state.locked?'위치를 고정했어요! 이제 마음껏 그려요':'위치 고정을 풀었어요','🔒');
   });
 
-  // ---- Reset ----
-  resetBtn.addEventListener('click', ()=>{
+  /* ── 초기화 ── */
+  resetBtn.addEventListener('click',()=>{
     if(!hasImage) return;
-    const targetW = window.innerWidth * 0.85;
+    const targetW = window.innerWidth * 0.88;
     state.scale = targetW / img.naturalWidth;
-    state.x = 0; state.y = 0; state.rotation = 0;
+    state.x=0; state.y=0; state.rotation=0;
     applyTransform();
-    showToast('위치를 초기화했어요');
+    showToast('처음 위치로 돌아왔어요','↺');
   });
 
-  // ---- Touch gestures: drag / pinch-zoom / two-finger rotate ----
+  /* ── 터치 제스처 ── */
   const pointers = new Map();
   let gestureStart = null;
+  function dist(a,b){return Math.hypot(a.x-b.x,a.y-b.y);}
+  function angle(a,b){return Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;}
+  function mid(a,b){return{x:(a.x+b.x)/2,y:(a.y+b.y)/2};}
 
-  function dist(a,b){ return Math.hypot(a.x-b.x, a.y-b.y); }
-  function angle(a,b){ return Math.atan2(b.y-a.y, b.x-a.x) * 180/Math.PI; }
-  function mid(a,b){ return { x:(a.x+b.x)/2, y:(a.y+b.y)/2 }; }
-
-  stage.addEventListener('pointerdown', (e)=>{
-    if(state.locked || !hasImage) return;
+  stage.addEventListener('pointerdown',e=>{
+    if(state.locked||!hasImage) return;
     stage.setPointerCapture(e.pointerId);
-    pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
-
-    if(pointers.size === 1){
-      gestureStart = {
-        mode:'drag',
-        startX: state.x, startY: state.y,
-        p0: {...[...pointers.values()][0]}
-      };
-    } else if(pointers.size === 2){
-      const [p1,p2] = [...pointers.values()];
-      gestureStart = {
-        mode:'pinch',
-        startScale: state.scale,
-        startRot: state.rotation,
-        startX: state.x, startY: state.y,
-        d0: dist(p1,p2),
-        a0: angle(p1,p2),
-        m0: mid(p1,p2)
-      };
+    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(pointers.size===1){
+      gestureStart={mode:'drag',startX:state.x,startY:state.y,p0:{...[...pointers.values()][0]}};
+    } else if(pointers.size===2){
+      const [p1,p2]=[...pointers.values()];
+      gestureStart={mode:'pinch',startScale:state.scale,startRot:state.rotation,
+        startX:state.x,startY:state.y,d0:dist(p1,p2),a0:angle(p1,p2),m0:mid(p1,p2)};
     }
   });
-
-  stage.addEventListener('pointermove', (e)=>{
+  stage.addEventListener('pointermove',e=>{
     if(!pointers.has(e.pointerId)) return;
-    pointers.set(e.pointerId, { x:e.clientX, y:e.clientY });
-
-    if(gestureStart && gestureStart.mode === 'drag' && pointers.size === 1){
-      const p = [...pointers.values()][0];
-      state.x = gestureStart.startX + (p.x - gestureStart.p0.x);
-      state.y = gestureStart.startY + (p.y - gestureStart.p0.y);
+    pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(gestureStart&&gestureStart.mode==='drag'&&pointers.size===1){
+      const p=[...pointers.values()][0];
+      state.x=gestureStart.startX+(p.x-gestureStart.p0.x);
+      state.y=gestureStart.startY+(p.y-gestureStart.p0.y);
       applyTransform();
-    } else if(gestureStart && gestureStart.mode === 'pinch' && pointers.size === 2){
-      const [p1,p2] = [...pointers.values()];
-      const d1 = dist(p1,p2);
-      const a1 = angle(p1,p2);
-      const m1 = mid(p1,p2);
-      state.scale = Math.max(0.1, gestureStart.startScale * (d1 / gestureStart.d0));
-      state.rotation = gestureStart.startRot + (a1 - gestureStart.a0);
-      state.x = gestureStart.startX + (m1.x - gestureStart.m0.x);
-      state.y = gestureStart.startY + (m1.y - gestureStart.m0.y);
+    } else if(gestureStart&&gestureStart.mode==='pinch'&&pointers.size===2){
+      const [p1,p2]=[...pointers.values()];
+      state.scale=Math.max(.1,gestureStart.startScale*(dist(p1,p2)/gestureStart.d0));
+      state.rotation=gestureStart.startRot+(angle(p1,p2)-gestureStart.a0);
+      const m1=mid(p1,p2);
+      state.x=gestureStart.startX+(m1.x-gestureStart.m0.x);
+      state.y=gestureStart.startY+(m1.y-gestureStart.m0.y);
       applyTransform();
     }
   });
-
   function endPointer(e){
     pointers.delete(e.pointerId);
-    if(pointers.size === 1){
-      const p = [...pointers.values()][0];
-      gestureStart = { mode:'drag', startX:state.x, startY:state.y, p0:{...p} };
-    } else if(pointers.size === 0){
-      gestureStart = null;
-    }
+    if(pointers.size===1){
+      const p=[...pointers.values()][0];
+      gestureStart={mode:'drag',startX:state.x,startY:state.y,p0:{...p}};
+    } else if(pointers.size===0){ gestureStart=null; }
   }
-  stage.addEventListener('pointerup', endPointer);
-  stage.addEventListener('pointercancel', endPointer);
+  stage.addEventListener('pointerup',endPointer);
+  stage.addEventListener('pointercancel',endPointer);
 
+  // 서비스워커 등록
+  if('serviceWorker' in navigator){
+    window.addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+  }
 })();
 </script>
 </body>
